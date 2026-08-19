@@ -14,12 +14,13 @@ import (
 
 // Processor is a struct to process message
 type Processor struct {
-	api openapi.OpenAPI
+	api     openapi.OpenAPI
+	bailian *BailianClient
 }
 
 // ProcessChannelMessage is a function to process message
 func (p Processor) ProcessChannelMessage(input string, data *dto.WSATMessageData) error {
-	msg := generateDemoMessage(input, dto.Message(*data))
+	msg := p.generateReplyMessage(input, dto.Message(*data))
 	if err := p.sendChannelReply(context.Background(), data.ChannelID, msg); err != nil {
 		_ = p.sendChannelReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
@@ -79,7 +80,7 @@ func genErrMessage(data dto.Message, err error) *dto.MessageToCreate {
 
 // ProcessGroupMessage 回复群消息
 func (p Processor) ProcessGroupMessage(input string, data *dto.WSGroupATMessageData) error {
-	msg := generateDemoMessage(input, dto.Message(*data))
+	msg := p.generateReplyMessage(input, dto.Message(*data))
 	if err := p.sendGroupReply(context.Background(), data.GroupID, msg); err != nil {
 		_ = p.sendGroupReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
@@ -93,18 +94,28 @@ func (p Processor) ProcessC2CMessage(input string, data *dto.WSC2CMessageData) e
 	if data.Author != nil && data.Author.ID != "" {
 		userID = data.Author.ID
 	}
-	msg := generateDemoMessage(input, dto.Message(*data))
+	msg := p.generateReplyMessage(input, dto.Message(*data))
 	if err := p.sendC2CReply(context.Background(), userID, msg); err != nil {
 		_ = p.sendC2CReply(context.Background(), userID, genErrMessage(dto.Message(*data), err))
 	}
 	return nil
 }
 
-func generateDemoMessage(input string, data dto.Message) *dto.MessageToCreate {
+// generateReplyMessage 调用百炼大模型生成回复内容
+func (p Processor) generateReplyMessage(input string, data dto.Message) *dto.MessageToCreate {
 	log.Printf("收到指令: %+v", input)
-	msg := ""
-	if len(input) > 0 {
-		msg += "收到:" + input
+
+	msg := "抱歉，我没有理解你的问题"
+	if trimmed := strings.TrimSpace(input); trimmed != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		reply, err := p.bailian.Chat(ctx, trimmed)
+		if err != nil {
+			log.Printf("调用百炼接口失败: %v", err)
+			msg = "抱歉，大模型服务暂时不可用，请稍后再试"
+		} else {
+			msg = reply
+		}
 	}
 	for _, _v := range data.Attachments {
 		msg += ",收到文件类型:" + _v.ContentType

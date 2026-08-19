@@ -27,18 +27,27 @@ const (
 // 消息处理器，持有 openapi 对象
 var processor Processor
 
+// Config 配置文件结构
+type Config struct {
+	AppID         string `yaml:"appid"`
+	Secret        string `yaml:"secret"`
+	BailianAPIKey string `yaml:"bailian_api_key"`
+	BailianModel  string `yaml:"bailian_model"`
+}
+
 func main() {
-	// 加载 appid 和 token
+	// 加载 appid、token 以及百炼大模型配置
 	content, err := os.ReadFile("config.yaml")
 	if err != nil {
 		log.Fatalln("load config file failed, err:", err)
 	}
-	credentials := &token.QQBotCredentials{
-		AppID:     "",
-		AppSecret: "",
-	}
-	if err = yaml.Unmarshal(content, &credentials); err != nil {
+	config := &Config{}
+	if err = yaml.Unmarshal(content, config); err != nil {
 		log.Fatalln("parse config failed, err:", err)
+	}
+	credentials := &token.QQBotCredentials{
+		AppID:     config.AppID,
+		AppSecret: config.Secret,
 	}
 	log.Println("credentials:", credentials)
 	tokenSource := token.NewQQBotTokenSource(credentials)
@@ -49,7 +58,8 @@ func main() {
 	}
 	// 初始化 openapi，正式环境
 	api := botgo.NewOpenAPI(credentials.AppID, tokenSource).WithTimeout(5 * time.Second).SetDebug(true)
-	processor = Processor{api: api}
+	bailian := NewBailianClient(config.BailianAPIKey, config.BailianModel)
+	processor = Processor{api: api, bailian: bailian}
 	// 注册处理函数
 	_ = event.RegisterHandlers(
 		// ***********消息事件***********
