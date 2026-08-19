@@ -59,7 +59,13 @@ func main() {
 	// 初始化 openapi，正式环境
 	api := botgo.NewOpenAPI(credentials.AppID, tokenSource).WithTimeout(5 * time.Second).SetDebug(true)
 	bailian := NewBailianClient(config.BailianAPIKey, config.BailianModel)
-	processor = Processor{api: api, bailian: bailian}
+	// 加载固定 FAQ，命中关键词的问题不走大模型，直接返回固定回复
+	faqEntries, err := LoadFAQ("faq.yaml")
+	if err != nil {
+		log.Fatalln("load faq file failed, err:", err)
+	}
+	log.Printf("已加载 %d 条 FAQ", len(faqEntries))
+	processor = Processor{api: api, bailian: bailian, faq: faqEntries}
 	// 注册处理函数
 	_ = event.RegisterHandlers(
 		// ***********消息事件***********
@@ -105,7 +111,8 @@ func GroupATMessageEventHandler() event.GroupATMessageEventHandler {
 // C2CMessageEventHandler 实现处理 at 消息的回调
 func C2CMessageEventHandler() event.C2CMessageEventHandler {
 	return func(event *dto.WSPayload, data *dto.WSC2CMessageData) error {
-		return processor.ProcessC2CMessage(string(event.RawMessage), data)
+		input := strings.ToLower(message.ETLInput(data.Content))
+		return processor.ProcessC2CMessage(input, data)
 	}
 }
 

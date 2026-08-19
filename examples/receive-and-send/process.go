@@ -16,6 +16,7 @@ import (
 type Processor struct {
 	api     openapi.OpenAPI
 	bailian *BailianClient
+	faq     []FAQEntry
 }
 
 // ProcessChannelMessage is a function to process message
@@ -101,20 +102,25 @@ func (p Processor) ProcessC2CMessage(input string, data *dto.WSC2CMessageData) e
 	return nil
 }
 
-// generateReplyMessage 调用百炼大模型生成回复内容
+// generateReplyMessage 优先匹配固定 FAQ，命中则直接返回固定回复；未命中再调用百炼大模型
 func (p Processor) generateReplyMessage(input string, data dto.Message) *dto.MessageToCreate {
 	log.Printf("收到指令: %+v", input)
 
 	msg := "抱歉，我没有理解你的问题"
 	if trimmed := strings.TrimSpace(input); trimmed != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		reply, err := p.bailian.Chat(ctx, trimmed)
-		if err != nil {
-			log.Printf("调用百炼接口失败: %v", err)
-			msg = "抱歉，大模型服务暂时不可用，请稍后再试"
+		if answer, ok := MatchFAQ(p.faq, trimmed); ok {
+			log.Printf("命中 FAQ，跳过大模型调用")
+			msg = answer
 		} else {
-			msg = reply
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			reply, err := p.bailian.Chat(ctx, trimmed)
+			if err != nil {
+				log.Printf("调用百炼接口失败: %v", err)
+				msg = "抱歉，大模型服务暂时不可用，请稍后再试"
+			} else {
+				msg = reply
+			}
 		}
 	}
 	for _, _v := range data.Attachments {
