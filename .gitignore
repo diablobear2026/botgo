@@ -19,4 +19,8 @@ examples/apitest/config.yaml.demo
 config.yaml
 demo
 
+# SCF 部署产物（打包时会包含 config.yaml，不能提交）
+examples/receive-and-send/qqbot-svr
+examples/receive-and-send/*.zip
+
 .DS_Store
