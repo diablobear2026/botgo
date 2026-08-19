@@ -1,8 +1,8 @@
 # 在这个配置文件中补充你的 appid 和 secret，并修改文件名为 config.yaml
-appid :
-secret :
+appid: ""
+secret: ""
 
 # 阿里云百炼(DashScope)大模型配置
-bailian_api_key :
+bailian_api_key: ""
 # 可选，默认 qwen-plus
-bailian_model :
+bailian_model: ""
