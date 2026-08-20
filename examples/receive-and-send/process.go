@@ -17,11 +17,13 @@ type Processor struct {
 	api     openapi.OpenAPI
 	bailian *BailianClient
 	faq     []FAQEntry
+	memory  *MemoryStore
 }
 
 // ProcessChannelMessage is a function to process message
 func (p Processor) ProcessChannelMessage(input string, data *dto.WSATMessageData) error {
-	msg := p.generateReplyMessage(input, dto.Message(*data))
+	// 频道场景暂不接入对话记忆
+	msg := p.generateReplyMessage(input, dto.Message(*data), "")
 	if err := p.sendChannelReply(context.Background(), data.ChannelID, msg); err != nil {
 		_ = p.sendChannelReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
@@ -81,7 +83,12 @@ func genErrMessage(data dto.Message, err error) *dto.MessageToCreate {
 
 // ProcessGroupMessage 回复群消息
 func (p Processor) ProcessGroupMessage(input string, data *dto.WSGroupATMessageData) error {
-	msg := p.generateReplyMessage(input, dto.Message(*data))
+	memberID := ""
+	if data.Author != nil && data.Author.ID != "" {
+		memberID = data.Author.ID
+	}
+	memKey := memoryKey("group", data.GroupID, memberID)
+	msg := p.generateReplyMessage(input, dto.Message(*data), memKey)
 	if err := p.sendGroupReply(context.Background(), data.GroupID, msg); err != nil {
 		_ = p.sendGroupReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
@@ -95,15 +102,17 @@ func (p Processor) ProcessC2CMessage(input string, data *dto.WSC2CMessageData) e
 	if data.Author != nil && data.Author.ID != "" {
 		userID = data.Author.ID
 	}
-	msg := p.generateReplyMessage(input, dto.Message(*data))
+	memKey := memoryKey("c2c", "", userID)
+	msg := p.generateReplyMessage(input, dto.Message(*data), memKey)
 	if err := p.sendC2CReply(context.Background(), userID, msg); err != nil {
 		_ = p.sendC2CReply(context.Background(), userID, genErrMessage(dto.Message(*data), err))
 	}
 	return nil
 }
 
-// generateReplyMessage 优先匹配固定 FAQ，命中则直接返回固定回复；未命中再调用百炼大模型
-func (p Processor) generateReplyMessage(input string, data dto.Message) *dto.MessageToCreate {
+// generateReplyMessage 优先匹配固定 FAQ，命中则直接返回固定回复；未命中再调用百炼大模型。
+// memKey 为空时不读写对话记忆（比如频道场景），非空时读取历史记忆一起发给大模型，回复后写回。
+func (p Processor) generateReplyMessage(input string, data dto.Message, memKey string) *dto.MessageToCreate {
 	log.Printf("收到指令: %+v", input)
 
 	msg := "抱歉，我没有理解你的问题"
@@ -114,12 +123,27 @@ func (p Processor) generateReplyMessage(input string, data dto.Message) *dto.Mes
 		} else {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			reply, err := p.bailian.Chat(ctx, trimmed)
+
+			var history []ChatMessage
+			if memKey != "" && p.memory != nil {
+				if h, err := p.memory.LoadHistory(ctx, memKey); err != nil {
+					log.Printf("读取对话记忆失败: %v", err)
+				} else {
+					history = h
+				}
+			}
+
+			reply, err := p.bailian.Chat(ctx, history, trimmed)
 			if err != nil {
 				log.Printf("调用百炼接口失败: %v", err)
 				msg = "抱歉，大模型服务暂时不可用，请稍后再试"
 			} else {
 				msg = reply
+				if memKey != "" && p.memory != nil {
+					if err := p.memory.AppendRound(ctx, memKey, trimmed, reply); err != nil {
+						log.Printf("写入对话记忆失败: %v", err)
+					}
+				}
 			}
 		}
 	}

@@ -27,12 +27,18 @@ const (
 // 消息处理器，持有 openapi 对象
 var processor Processor
 
+// memoryRounds 对话记忆保留的轮数（1 轮 = 1 条用户消息 + 1 条机器人回复）
+const memoryRounds = 10
+
 // Config 配置文件结构
 type Config struct {
 	AppID         string `yaml:"appid"`
 	Secret        string `yaml:"secret"`
 	BailianAPIKey string `yaml:"bailian_api_key"`
 	BailianModel  string `yaml:"bailian_model"`
+	RedisAddr     string `yaml:"redis_addr"`
+	RedisPassword string `yaml:"redis_password"`
+	RedisDB       int    `yaml:"redis_db"`
 }
 
 func main() {
@@ -65,7 +71,19 @@ func main() {
 		log.Fatalln("load faq file failed, err:", err)
 	}
 	log.Printf("已加载 %d 条 FAQ", len(faqEntries))
-	processor = Processor{api: api, bailian: bailian, faq: faqEntries}
+	// 留空 redis_addr 则不启用对话记忆功能
+	var memory *MemoryStore
+	if config.RedisAddr != "" {
+		memory = NewMemoryStore(config.RedisAddr, config.RedisPassword, config.RedisDB, memoryRounds)
+		pingCtx, pingCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		if err := memory.Ping(pingCtx); err != nil {
+			log.Printf("[Redis] 连接失败，addr=%s，对话记忆功能会在每次读写时静默降级，请检查 VPC/安全组: %v", config.RedisAddr, err)
+		} else {
+			log.Printf("[Redis] 连接成功，addr=%s，对话记忆功能已启用", config.RedisAddr)
+		}
+		pingCancel()
+	}
+	processor = Processor{api: api, bailian: bailian, faq: faqEntries, memory: memory}
 	// 注册处理函数
 	_ = event.RegisterHandlers(
 		// ***********消息事件***********

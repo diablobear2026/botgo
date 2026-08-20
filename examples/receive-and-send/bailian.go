@@ -35,19 +35,20 @@ func NewBailianClient(apiKey, model string) *BailianClient {
 	}
 }
 
-type bailianChatMessage struct {
+// ChatMessage 表示一条对话消息，既是百炼请求/响应的消息格式，也是对话记忆的存储格式
+type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
 type bailianChatRequest struct {
-	Model    string               `json:"model"`
-	Messages []bailianChatMessage `json:"messages"`
+	Model    string        `json:"model"`
+	Messages []ChatMessage `json:"messages"`
 }
 
 type bailianChatResponse struct {
 	Choices []struct {
-		Message bailianChatMessage `json:"message"`
+		Message ChatMessage `json:"message"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
@@ -55,17 +56,18 @@ type bailianChatResponse struct {
 	} `json:"error"`
 }
 
-// Chat 发送一段用户输入给百炼大模型，返回回复文本
-func (c *BailianClient) Chat(ctx context.Context, userInput string) (string, error) {
+// Chat 发送一段用户输入给百炼大模型，history 是之前几轮的对话记忆（可为空），返回回复文本
+func (c *BailianClient) Chat(ctx context.Context, history []ChatMessage, userInput string) (string, error) {
 	if c.APIKey == "" {
 		return "", errors.New("bailian api key 未配置")
 	}
+	messages := make([]ChatMessage, 0, len(history)+2)
+	messages = append(messages, ChatMessage{Role: "system", Content: "你是一个部署在 QQ 机器人里的助手，请用简洁自然的中文回答用户问题。"})
+	messages = append(messages, history...)
+	messages = append(messages, ChatMessage{Role: "user", Content: userInput})
 	reqBody := bailianChatRequest{
-		Model: c.Model,
-		Messages: []bailianChatMessage{
-			{Role: "system", Content: "你是一个部署在 QQ 机器人里的助手，请用简洁自然的中文回答用户问题。"},
-			{Role: "user", Content: userInput},
-		},
+		Model:    c.Model,
+		Messages: messages,
 	}
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
