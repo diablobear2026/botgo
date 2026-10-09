@@ -14,10 +14,11 @@ import (
 
 // Processor is a struct to process message
 type Processor struct {
-	api     openapi.OpenAPI
-	bailian *BailianClient
-	faq     []FAQEntry
-	memory  *MemoryStore
+	api       openapi.OpenAPI
+	bailian   *BailianClient
+	faq       []FAQEntry
+	memory    *MemoryStore
+	asrClient voiceTranscriber
 }
 
 // ProcessChannelMessage is a function to process message
