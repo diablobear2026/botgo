@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	asr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr/v20190614"
 	"github.com/tencent-connect/botgo/dto"
+	asr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr/v20190614"
 )
 
 func strPtr(s string) *string { return &s }

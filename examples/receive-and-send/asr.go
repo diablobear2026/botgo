@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tencent-connect/botgo/dto"
 	asr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr/v20190614"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-	"github.com/tencent-connect/botgo/dto"
 )
 
 // TencentASRClient 封装对腾讯云"一句话识别"接口的调用
@@ -123,6 +123,10 @@ func (p Processor) resolveUserInput(
 		log.Printf("[Voice] 未配置腾讯云ASR，语音消息无法识别")
 		return "", true
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	audioBytes, err := downloadVoiceBytes(ctx, voice.URL)
 	if err != nil {
 		log.Printf("[Voice] 下载语音附件失败: %v", err)
