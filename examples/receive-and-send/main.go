@@ -32,13 +32,17 @@ const memoryRounds = 10
 
 // Config 配置文件结构
 type Config struct {
-	AppID         string `yaml:"appid"`
-	Secret        string `yaml:"secret"`
-	BailianAPIKey string `yaml:"bailian_api_key"`
-	BailianModel  string `yaml:"bailian_model"`
-	RedisAddr     string `yaml:"redis_addr"`
-	RedisPassword string `yaml:"redis_password"`
-	RedisDB       int    `yaml:"redis_db"`
+	AppID                    string `yaml:"appid"`
+	Secret                   string `yaml:"secret"`
+	BailianAPIKey            string `yaml:"bailian_api_key"`
+	BailianModel             string `yaml:"bailian_model"`
+	RedisAddr                string `yaml:"redis_addr"`
+	RedisPassword            string `yaml:"redis_password"`
+	RedisDB                  int    `yaml:"redis_db"`
+	TencentSecretID          string `yaml:"tencent_secret_id"`
+	TencentSecretKey         string `yaml:"tencent_secret_key"`
+	TencentASRRegion         string `yaml:"tencent_asr_region"`
+	TencentASREngServiceType string `yaml:"tencent_asr_eng_service_type"`
 }
 
 func main() {
@@ -83,7 +87,21 @@ func main() {
 		}
 		pingCancel()
 	}
-	processor = Processor{api: api, bailian: bailian, faq: faqEntries, memory: memory}
+	// 留空 tencent_secret_id 则不启用语音识别功能，语音消息会收到固定兜底文案
+	var asrClient voiceTranscriber
+	if config.TencentSecretID != "" {
+		client, err := NewTencentASRClient(
+			config.TencentSecretID, config.TencentSecretKey,
+			config.TencentASRRegion, config.TencentASREngServiceType,
+		)
+		if err != nil {
+			log.Printf("[Voice] 创建腾讯云ASR客户端失败，语音识别功能不可用: %v", err)
+		} else {
+			asrClient = client
+			log.Printf("[Voice] 腾讯云ASR客户端已创建，语音识别功能已启用")
+		}
+	}
+	processor = Processor{api: api, bailian: bailian, faq: faqEntries, memory: memory, asrClient: asrClient}
 	// 注册处理函数
 	_ = event.RegisterHandlers(
 		// ***********消息事件***********

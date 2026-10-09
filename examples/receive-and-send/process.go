@@ -23,10 +23,15 @@ type Processor struct {
 
 // ProcessChannelMessage is a function to process message
 func (p Processor) ProcessChannelMessage(input string, data *dto.WSATMessageData) error {
+	ctx := context.Background()
+	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	if needFallback {
+		return p.sendChannelReply(ctx, data.ChannelID, genVoiceFallbackMessage(dto.Message(*data)))
+	}
 	// 频道场景暂不接入对话记忆
-	msg := p.generateReplyMessage(input, dto.Message(*data), "")
-	if err := p.sendChannelReply(context.Background(), data.ChannelID, msg); err != nil {
-		_ = p.sendChannelReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
+	msg := p.generateReplyMessage(resolvedInput, dto.Message(*data), "")
+	if err := p.sendChannelReply(ctx, data.ChannelID, msg); err != nil {
+		_ = p.sendChannelReply(ctx, data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
 	return nil
 }
@@ -84,14 +89,20 @@ func genErrMessage(data dto.Message, err error) *dto.MessageToCreate {
 
 // ProcessGroupMessage 回复群消息
 func (p Processor) ProcessGroupMessage(input string, data *dto.WSGroupATMessageData) error {
+	ctx := context.Background()
+	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	if needFallback {
+		return p.sendGroupReply(ctx, data.GroupID, genVoiceFallbackMessage(dto.Message(*data)))
+	}
+
 	memberID := ""
 	if data.Author != nil && data.Author.ID != "" {
 		memberID = data.Author.ID
 	}
 	memKey := memoryKey("group", data.GroupID, memberID)
-	msg := p.generateReplyMessage(input, dto.Message(*data), memKey)
-	if err := p.sendGroupReply(context.Background(), data.GroupID, msg); err != nil {
-		_ = p.sendGroupReply(context.Background(), data.GroupID, genErrMessage(dto.Message(*data), err))
+	msg := p.generateReplyMessage(resolvedInput, dto.Message(*data), memKey)
+	if err := p.sendGroupReply(ctx, data.GroupID, msg); err != nil {
+		_ = p.sendGroupReply(ctx, data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
 
 	return nil
@@ -103,10 +114,16 @@ func (p Processor) ProcessC2CMessage(input string, data *dto.WSC2CMessageData) e
 	if data.Author != nil && data.Author.ID != "" {
 		userID = data.Author.ID
 	}
+	ctx := context.Background()
+	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	if needFallback {
+		return p.sendC2CReply(ctx, userID, genVoiceFallbackMessage(dto.Message(*data)))
+	}
+
 	memKey := memoryKey("c2c", "", userID)
-	msg := p.generateReplyMessage(input, dto.Message(*data), memKey)
-	if err := p.sendC2CReply(context.Background(), userID, msg); err != nil {
-		_ = p.sendC2CReply(context.Background(), userID, genErrMessage(dto.Message(*data), err))
+	msg := p.generateReplyMessage(resolvedInput, dto.Message(*data), memKey)
+	if err := p.sendC2CReply(ctx, userID, msg); err != nil {
+		_ = p.sendC2CReply(ctx, userID, genErrMessage(dto.Message(*data), err))
 	}
 	return nil
 }
