@@ -28,7 +28,7 @@
 > **2026-10-09 Plan B 补充修订**：Plan B 设计阶段时把 TTS 也从阿里云百炼改成了腾讯云，并且找到一个比 CGO 更简单的 silk 编码方案，具体见下。
 
 - **TTS**：**腾讯云"基础语音合成"**（`tts.tencentcloudapi.com`，`Action=TextToVoice`，`Version=2019-08-23`），而不是原计划的阿里云百炼。原因：(1) 跟 ASR 用同一套腾讯云账号/密钥，不用再接一套阿里云的认证；(2) 调研发现百炼 CosyVoice 的"非流式"合成底层仍然是 WebSocket（SDK 内部维护长连接，没有纯 HTTP REST 调用方式），接入复杂度明显高于腾讯云这边——腾讯云是纯同步 HTTP POST，直接在响应体里拿 base64 音频（`Response.Audio`），没有百炼那种协议复杂度。硬约束：**单次最多 150 个汉字**（全角标点算一个字），超过要截断，更长的文本只能走"长文本语音合成"（异步任务），会重蹈百炼 ASR 异步模式的覆辙，所以不用。输出格式用 `Codec=pcm`、`SampleRate=24000`（这个采样率是部分音色才支持，要在音色列表里选对应音色），直接拿到适合喂给 silk 编码器的裸 PCM，不用处理 wav 头。
-- **Silk 编码（仅 TTS 输出侧需要，Plan B 范围）**：**纯 Go 库 `github.com/youthlin/silk`**（从 silk v1.0.9 的 C 版本移植），直接 `Encode(pcmReader, silk.SampleRate(24000))` 拿到 silk v3 字节，**不需要 CGO**，继续维持 `CGO_ENABLED=0` 纯 Go 交叉编译，这是 Plan B 设计阶段相对最初方案最大的简化——原计划是 CGO 链接 C silk 库，需要换 `zig cc` 交叉编译链；这个库默认开启 `Stx` 选项（库作者明确标注"兼容 QQ/微信"），比较对口。
+- **Silk 编码（仅 TTS 输出侧需要，Plan B 范围）**：**纯 Go 库 `github.com/youthlin/silk`**（从 silk v1.0.9 的 C 版本移植），直接 `Encode(pcmReader, silk.SampleRate(24000))` 拿到 silk v3 字节，**不需要 CGO**，继续维持 `CGO_ENABLED=0` 纯 Go 交叉编译，这是 Plan B 设计阶段相对最初方案最大的简化——原计划是 CGO 链接 C silk 库，需要换 `zig cc` 交叉编译链。**2026-10-10 实现阶段修正**：这个库的 `Stx` 选项默认值其实是 `false`（Go 零值），不是设计阶段最初以为的"默认开启"——`Encode` 必须显式传 `silk.Stx(true)` 才会在 "#!SILK_V3" 头前加上 QQ/微信要求的 0x02(STX) 前缀字节，否则 QQ 会把文件当成普通附件而不是语音消息处理。这一点是 Task 2 的 task reviewer 读库源码发现的，已在 `silk.go` 里修正并通过复审。
   - 风险：这个库相对小众（15 star、12 次提交），不如 `kn007/silk-v3-decoder`（微信/QQ生态里最广泛使用的 C 实现）久经考验，需要先用真实 QQ 账号实测验证编码出来的语音能不能正常播放，而不是只看单测通过；如果验证发现编码质量有问题，回退到 CGO 链接 `kn007/silk-v3-decoder` 这个备选方案。
   - 仍然评估并排除的替代方案（跟 Plan A 阶段的结论一致，没有变化）：
     - `silk-wasm`（npm 包，Emscripten + embind 编译）：依赖 JS glue 代码，裸 wasm 模块塞不进 Go 的 wasm runtime，淘汰。
