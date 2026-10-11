@@ -111,17 +111,18 @@ func downloadVoiceBytes(ctx context.Context, url string) ([]byte, error) {
 }
 
 // resolveUserInput 若 attachments 里有语音附件则下载并调ASR转写成文字；
-// needFallback=true 表示语音处理失败/未配置，调用方应该直接回复兜底文案，不再往下走文字流程。
+// needFallback=true 表示语音处理失败/未配置，调用方应该直接回复兜底文案，不再往下走文字流程；
+// fromVoice=true 表示这轮确实是语音输入且识别成功，调用方可以据此决定要不要尝试语音回复。
 func (p Processor) resolveUserInput(
 	ctx context.Context, input string, attachments []*dto.MessageAttachment,
-) (resolved string, needFallback bool) {
+) (resolved string, needFallback bool, fromVoice bool) {
 	voice := findVoiceAttachment(attachments)
 	if voice == nil {
-		return input, false
+		return input, false, false
 	}
 	if p.asrClient == nil {
 		log.Printf("[Voice] 未配置腾讯云ASR，语音消息无法识别")
-		return "", true
+		return "", true, false
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -130,15 +131,15 @@ func (p Processor) resolveUserInput(
 	audioBytes, err := downloadVoiceBytes(ctx, voice.URL)
 	if err != nil {
 		log.Printf("[Voice] 下载语音附件失败: %v", err)
-		return "", true
+		return "", true, false
 	}
 	text, err := p.asrClient.Transcribe(ctx, audioBytes)
 	if err != nil {
 		log.Printf("[Voice] 语音识别失败: %v", err)
-		return "", true
+		return "", true, false
 	}
 	log.Printf("[Voice] 语音识别结果: %s", text)
-	return text, false
+	return text, false, true
 }
 
 // genVoiceFallbackMessage 语音识别失败或未配置ASR时的兜底回复文案

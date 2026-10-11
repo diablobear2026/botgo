@@ -14,17 +14,19 @@ import (
 
 // Processor is a struct to process message
 type Processor struct {
-	api       openapi.OpenAPI
-	bailian   *BailianClient
-	faq       []FAQEntry
-	memory    *MemoryStore
-	asrClient voiceTranscriber
+	api         openapi.OpenAPI
+	bailian     *BailianClient
+	faq         []FAQEntry
+	memory      *MemoryStore
+	asrClient   voiceTranscriber
+	ttsClient   voiceReplySynthesizer
+	cosUploader voiceReplyUploader
 }
 
 // ProcessChannelMessage is a function to process message
 func (p Processor) ProcessChannelMessage(input string, data *dto.WSATMessageData) error {
 	ctx := context.Background()
-	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	resolvedInput, needFallback, _ := p.resolveUserInput(ctx, input, data.Attachments)
 	if needFallback {
 		return p.sendChannelReply(ctx, data.ChannelID, genVoiceFallbackMessage(dto.Message(*data)))
 	}
@@ -90,7 +92,7 @@ func genErrMessage(data dto.Message, err error) *dto.MessageToCreate {
 // ProcessGroupMessage 回复群消息
 func (p Processor) ProcessGroupMessage(input string, data *dto.WSGroupATMessageData) error {
 	ctx := context.Background()
-	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	resolvedInput, needFallback, fromVoice := p.resolveUserInput(ctx, input, data.Attachments)
 	if needFallback {
 		return p.sendGroupReply(ctx, data.GroupID, genVoiceFallbackMessage(dto.Message(*data)))
 	}
@@ -101,6 +103,15 @@ func (p Processor) ProcessGroupMessage(input string, data *dto.WSGroupATMessageD
 	}
 	memKey := memoryKey("group", data.GroupID, memberID)
 	msg := p.generateReplyMessage(resolvedInput, dto.Message(*data), memKey)
+
+	if fromVoice {
+		if err := p.sendVoiceReply(ctx, "group", data.GroupID, msg.Content, data.ID); err == nil {
+			return nil
+		} else {
+			log.Printf("[Voice] 语音回复失败，降级为文字: %v", err)
+		}
+	}
+
 	if err := p.sendGroupReply(ctx, data.GroupID, msg); err != nil {
 		_ = p.sendGroupReply(ctx, data.GroupID, genErrMessage(dto.Message(*data), err))
 	}
@@ -115,13 +126,22 @@ func (p Processor) ProcessC2CMessage(input string, data *dto.WSC2CMessageData) e
 		userID = data.Author.ID
 	}
 	ctx := context.Background()
-	resolvedInput, needFallback := p.resolveUserInput(ctx, input, data.Attachments)
+	resolvedInput, needFallback, fromVoice := p.resolveUserInput(ctx, input, data.Attachments)
 	if needFallback {
 		return p.sendC2CReply(ctx, userID, genVoiceFallbackMessage(dto.Message(*data)))
 	}
 
 	memKey := memoryKey("c2c", "", userID)
 	msg := p.generateReplyMessage(resolvedInput, dto.Message(*data), memKey)
+
+	if fromVoice {
+		if err := p.sendVoiceReply(ctx, "c2c", userID, msg.Content, data.ID); err == nil {
+			return nil
+		} else {
+			log.Printf("[Voice] 语音回复失败，降级为文字: %v", err)
+		}
+	}
+
 	if err := p.sendC2CReply(ctx, userID, msg); err != nil {
 		_ = p.sendC2CReply(ctx, userID, genErrMessage(dto.Message(*data), err))
 	}

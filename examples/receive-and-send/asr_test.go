@@ -149,33 +149,33 @@ func TestResolveUserInput(t *testing.T) {
 
 	t.Run("没有语音附件，原样返回文字输入", func(t *testing.T) {
 		p := Processor{asrClient: fakeTranscriber{text: "不应该被调用"}}
-		got, needFallback := p.resolveUserInput(context.Background(), "你好", nil)
-		if needFallback || got != "你好" {
-			t.Fatalf("got (%q,%v)", got, needFallback)
+		got, needFallback, fromVoice := p.resolveUserInput(context.Background(), "你好", nil)
+		if needFallback || fromVoice || got != "你好" {
+			t.Fatalf("got (%q,%v,%v)", got, needFallback, fromVoice)
 		}
 	})
 
 	t.Run("未配置ASR客户端", func(t *testing.T) {
 		p := Processor{asrClient: nil}
-		_, needFallback := p.resolveUserInput(context.Background(), "", voiceAttachments)
-		if !needFallback {
-			t.Fatal("期望 needFallback=true")
+		_, needFallback, fromVoice := p.resolveUserInput(context.Background(), "", voiceAttachments)
+		if !needFallback || fromVoice {
+			t.Fatalf("got (needFallback=%v,fromVoice=%v)", needFallback, fromVoice)
 		}
 	})
 
 	t.Run("识别成功", func(t *testing.T) {
 		p := Processor{asrClient: fakeTranscriber{text: "今天天气怎么样"}}
-		got, needFallback := p.resolveUserInput(context.Background(), "", voiceAttachments)
-		if needFallback || got != "今天天气怎么样" {
-			t.Fatalf("got (%q,%v)", got, needFallback)
+		got, needFallback, fromVoice := p.resolveUserInput(context.Background(), "", voiceAttachments)
+		if needFallback || !fromVoice || got != "今天天气怎么样" {
+			t.Fatalf("got (%q,%v,%v)", got, needFallback, fromVoice)
 		}
 	})
 
 	t.Run("识别失败", func(t *testing.T) {
 		p := Processor{asrClient: fakeTranscriber{err: errors.New("boom")}}
-		_, needFallback := p.resolveUserInput(context.Background(), "", voiceAttachments)
-		if !needFallback {
-			t.Fatal("期望 needFallback=true")
+		_, needFallback, fromVoice := p.resolveUserInput(context.Background(), "", voiceAttachments)
+		if !needFallback || fromVoice {
+			t.Fatalf("got (needFallback=%v,fromVoice=%v)", needFallback, fromVoice)
 		}
 	})
 }

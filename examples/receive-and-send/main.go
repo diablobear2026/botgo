@@ -43,6 +43,9 @@ type Config struct {
 	TencentSecretKey         string `yaml:"tencent_secret_key"`
 	TencentASRRegion         string `yaml:"tencent_asr_region"`
 	TencentASREngServiceType string `yaml:"tencent_asr_eng_service_type"`
+	TencentTTSVoiceType      int64  `yaml:"tencent_tts_voice_type"`
+	COSBucket                string `yaml:"cos_bucket"`
+	COSRegion                string `yaml:"cos_region"`
 }
 
 func main() {
@@ -101,7 +104,34 @@ func main() {
 			log.Printf("[Voice] 腾讯云ASR客户端已创建，语音识别功能已启用")
 		}
 	}
-	processor = Processor{api: api, bailian: bailian, faq: faqEntries, memory: memory, asrClient: asrClient}
+	// 留空 cos_bucket 则不启用语音回复功能，复用 ASR 已有的腾讯云密钥
+	var ttsClient voiceReplySynthesizer
+	var cosUploader voiceReplyUploader
+	if config.COSBucket != "" && config.TencentSecretID != "" {
+		t, err := NewTencentTTSClient(
+			config.TencentSecretID, config.TencentSecretKey,
+			config.TencentASRRegion, config.TencentTTSVoiceType,
+		)
+		if err != nil {
+			log.Printf("[Voice] 创建腾讯云TTS客户端失败，语音回复功能不可用: %v", err)
+		} else {
+			c, err := NewCOSUploader(
+				config.TencentSecretID, config.TencentSecretKey,
+				config.COSBucket, config.COSRegion,
+			)
+			if err != nil {
+				log.Printf("[Voice] 创建COS上传器失败，语音回复功能不可用: %v", err)
+			} else {
+				ttsClient = t
+				cosUploader = c
+				log.Printf("[Voice] 腾讯云TTS/COS已创建，语音回复功能已启用")
+			}
+		}
+	}
+	processor = Processor{
+		api: api, bailian: bailian, faq: faqEntries, memory: memory,
+		asrClient: asrClient, ttsClient: ttsClient, cosUploader: cosUploader,
+	}
 	// 注册处理函数
 	_ = event.RegisterHandlers(
 		// ***********消息事件***********
