@@ -107,7 +107,14 @@ func main() {
 	// 留空 cos_bucket 则不启用语音回复功能，复用 ASR 已有的腾讯云密钥
 	var ttsClient voiceReplySynthesizer
 	var cosUploader voiceReplyUploader
-	if config.COSBucket != "" && config.TencentSecretID != "" {
+	switch {
+	case config.COSBucket == "":
+		// 未配置，语音回复功能保持关闭，不是错误
+	case config.TencentSecretID == "":
+		log.Printf("[Voice] 配置了cos_bucket但未配置tencent_secret_id，语音回复功能不可用")
+	case config.TencentTTSVoiceType == 0:
+		log.Printf("[Voice] 配置了cos_bucket但tencent_tts_voice_type未设置(为0)，语音回复功能不可用")
+	default:
 		t, err := NewTencentTTSClient(
 			config.TencentSecretID, config.TencentSecretKey,
 			config.TencentASRRegion, config.TencentTTSVoiceType,
