@@ -80,8 +80,11 @@ github.com/tencent-connect/botgo v0.1.7 h1:+RkHW9T4WOBRGQtOcFAO52VvZEKoTXFq162k2
 github.com/tencent-connect/botgo v0.1.7/go.mod h1:oO1sG9ybhXNickvt+CVym5khwQ+uKhTR+IhTqEfOVsI=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr v1.3.182 h1:UBXiprUPfSsqPwHj026Eadp2FDvNBFuU69YE58up3JI=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr v1.3.182/go.mod h1:tcBQnoIFjye4wz5kgjSLvA4ZiL+v1ec06H/78GkhYMM=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.102/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.182 h1:EIoUMiKM7YLvIBRuBwlTZH4sVU+hRsHKnJ0c+N2gWU4=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.182/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/tts v1.3.102 h1:V5ChUwoO5VmdBDfV986QVioSmPo8s3/x2EyO0g3LU0Y=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/tts v1.3.102/go.mod h1:8vFlKaL0pep/baLBPJ/HYLVJvgx3GoB4BI2Txg3B4FU=
 github.com/tidwall/gjson v1.9.3 h1:hqzS9wAHMO+KVBBkLxYdkEeeFHuqr95GfClRLKlgK0E=
 github.com/tidwall/gjson v1.9.3/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
