@@ -9,6 +9,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr v1.3.182
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.182
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/tts v1.3.102
+	github.com/youthlin/silk v0.0.4
 	go.uber.org/zap v1.19.1
 	gopkg.in/yaml.v3 v3.0.1
 )
