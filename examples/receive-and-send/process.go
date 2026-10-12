@@ -185,9 +185,6 @@ func (p Processor) generateReplyMessage(input string, data dto.Message, memKey s
 			}
 		}
 	}
-	for _, _v := range data.Attachments {
-		msg += ",收到文件类型:" + _v.ContentType
-	}
 	return &dto.MessageToCreate{
 		Timestamp: time.Now().UnixMilli(),
 		Content:   msg,
